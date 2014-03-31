@@ -31,7 +31,7 @@ class DockerInfo < NagiosPlugin::Plugin
   
   # initialize with a call to docker info
   def initialize
-    cmd = 'docker info 2>&1'
+    cmd = '/usr/bin/docker info 2>&1'
     @info = {}
     IO.popen(cmd).each do |line|
       if(line.include?("Cannot connect") || line.include?("permission denied"))
