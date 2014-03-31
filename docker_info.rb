@@ -2,20 +2,6 @@
 require 'nagiosplugin'
 require 'slop'
 
-
-#TODO need to parse args like anormale nagios plugin
-opts = Slop.parse do
-  banner 'Usage: foo.rb [options]'
-
-  on 'w', 'warning','threshold for worning'
-  on 'c', 'critical', 'threshold for critical'
-  on 'v', 'verbose', 'Enable verbose mode'
-end
-
-# if ARGV is `--name Lee -v`
-opts.verbose?  #=> true
-#puts opts.to_hash   #=> {:name=>"Lee", :password=>nil, :verbose=>true}
-
 # simple helpers to find if a string is a number
 class String
   def is_number?
@@ -23,30 +9,58 @@ class String
   end
 end
 
-
 class DockerInfo < NagiosPlugin::Plugin
   @critical = false
   @warning = false
   @ok = false
   
-  # initialize with a call to docker info
+  # initialize parsing parameters and running the docker info
   def initialize
+    opts = Slop.parse do
+      banner 'Usage: docker_info [options]'
+
+      on 'w', 'warning=','Check containers, raise warning if bigger(outside) than the threshold', optional: true
+      on 'c', 'critical=', 'Check containers, raise critical if bigger(outside) than the threshold', optional: true
+      #on 'v', 'verbose', 'Enable verbose mode', optional: true TODO
+      on :h, :help, 'Print this help message', optional: true, :tail => true do
+        puts help
+        exit
+      end
+    end
+   
     cmd = '/usr/bin/docker info 2>&1'
     @info = {}
+    #used popen to manipulate the stdout into and hashm, and check early critical problmes
     IO.popen(cmd).each do |line|
       if(line.include?("Cannot connect") || line.include?("permission denied"))
-        @critical = true
         @info["CRITICAL"]=line
       else
         l=line.split(':')
         @info[l[0].delete(' ')]=l[1][0..-2]
       end
-    end.close
+    end.close# close the IO to get the result in $?
+    #by defoult if docker info return data the plugin return success
     @ok =  $?.success?
     
+    #@info.delete("WARNING")# uncoment to ignore swap warning
+
+    #check if bypassed warning threshold
+    if(opts["warning"])
+      if(@info["Containers"].to_i > opts["warning"].to_i)
+        @info["WARNING"]+=" Current #{@info["Containers"]} container/s with a warning threshold of #{opts["warning"].to_i} "
+      end
+    end
     
-    #@info.delete("WARNING")# remove for now warning from docker info
+    #check if bypassed critical threshold
+    if(opts["critical"])
+      if(@info["Containers"].to_i > opts["critical"].to_i)
+        @info["CRITICAL"]+="Current #{@info["Containers"]} container/s with a warning threshold of #{opts["critical"].to_i} "
+      end
+    end
+    
+    # if the @info hash contains any criticals or warning it enables returning different exit code
     @warning = @info.has_key?("WARNING")
+    @critical = @info.has_key?("CRITICAL")
   end
 
   def critical?
@@ -56,19 +70,21 @@ class DockerInfo < NagiosPlugin::Plugin
 
   def warning?
     @msg=@info["WARNING"]
-    perf_data=" |"
+    perf_data="|"
+    #generation of the pefromance data based on numeric results
     @info.each do |label,val|
       if (val.is_number?)
          perf_data+="#{label}=#{val.delete(' ')} ,"
       end
     end
-    @msg=@msg + perf_data[0..-2]  
+    @msg += perf_data[0..-2]  
     @warning 
   end
 
   def ok?
     perf_data = "|"
     @msg = ""
+    #speration of performance and generic data based if the data is numeric or not
     @info.each do |label,val|
       if (val.is_number?)
          perf_data+="#{label}=#{val.delete(' ')} ,"
@@ -89,5 +105,3 @@ end
 
 #call the script and print the result
 DockerInfo.check
-
-
