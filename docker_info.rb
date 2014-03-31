@@ -62,38 +62,41 @@ class DockerInfo < NagiosPlugin::Plugin
     @warning = @info.has_key?("WARNING")
     @critical = @info.has_key?("CRITICAL")
   end
+  
+  def perf_data
+    pd="|"
+    #generation of the perfomance data based on numeric results
+    @info.each do |label,val|
+      if (val.is_number?)
+         pd+="#{label}=#{val.delete(' ')} ,"
+      end
+    end
+    pd[0..-2]
+  end
 
+  def general_output
+    gout=""
+    #generation of the general output data based on non-numeric results
+    @info.each do |label,val|
+      if (!val.is_number?)
+         gout+="#{label} is #{val.delete(' ')} ,"
+      end
+    end
+    gout[0..-2]
+  end
+ 
   def critical?
-    @msg=@info["CRITICAL"]
+    @msg = @info["CRITICAL"] + perf_data if @info["CRITICAL"]
     @critical
   end
 
   def warning?
-    @msg=@info["WARNING"]
-    perf_data="|"
-    #generation of the pefromance data based on numeric results
-    @info.each do |label,val|
-      if (val.is_number?)
-         perf_data+="#{label}=#{val.delete(' ')} ,"
-      end
-    end
-    @msg += perf_data[0..-2]  
+    @msg = @info["WARNING"] + perf_data  if @info["WARNING"]
     @warning 
   end
 
   def ok?
-    perf_data = "|"
-    @msg = ""
-    #speration of performance and generic data based if the data is numeric or not
-    @info.each do |label,val|
-      if (val.is_number?)
-         perf_data+="#{label}=#{val.delete(' ')} ,"
-      else
-         @msg+="#{label} is #{val.delete(' ')} ,"
-      end
-    end
-    @msg=@msg[0..-2] + perf_data[0..-2]
-
+    @msg = general_output + perf_data
     @ok
   end
   
