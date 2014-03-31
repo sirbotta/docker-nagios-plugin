@@ -56,6 +56,13 @@ class DockerInfo < NagiosPlugin::Plugin
 
   def warning?
     @msg=@info["WARNING"]
+    perf_data=" |"
+    @info.each do |label,val|
+      if (val.is_number?)
+         perf_data+="#{label}=#{val.delete(' ')} ,"
+      end
+    end
+    @msg=@msg + perf_data[0..-2]  
     @warning 
   end
 
