@@ -17,14 +17,33 @@ bundle install
 Link or copy the script to your nagios plugins folder   
 ```ln -s docker_info.rb /usr/lib/nagios/plugins/check_docker.rb```
 
-Wire up your script as usual in the nrpe server and nagios server. The plugin must be used with the check_nrpe command.   
-In your command.cfg add something like
+Wire up your script as usual in the nrpe server and nagios server. The plugin must be used with the check_nrpe command.  
+NRPE server   
+in `/etc/nagios/nrpe.cfg` add this line   
+`command[check_docker]=/usr/lib/nagios/plugins/check_docker.rb`   
+restart the nrpe server   
+`sudo service nagios-nrpe-server restart`
+
+
+NAGIOS server   
+In your `/etc/nagios3/command.cfg` add something like
 ```
 define command {
   command_name  check_docker
   command_line $user1$/check_nrpe -H $HOSTADDRESS$ -c check_docker
   }
 ```
+
+In `/etc/nagios3/conf.d/your-host.cfg` add 
+```
+define service{
+  use           generic-service
+  host_name     your-host
+  check_command check_docker
+  }
+```
+restart nagios   
+`sudo service nagios3 restart`
 
 Usage
 -----
@@ -41,7 +60,7 @@ also you can set up custom thresholds for containers with -w (warning) and -c (c
 rise warning if more of 10 containers are running in the docker server   
 `./docker_info.rb -w10`
 
-rise warning if more of 10 containers or rais a critical if 20 or more are running in the docker server   
+rise warning if more of 10 containers and rise a critical if 20 or more are running in the docker server   
 `./docker_info.rb -w10 -c20`
 
 Default response
