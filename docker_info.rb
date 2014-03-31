@@ -28,42 +28,55 @@ class DockerInfo < NagiosPlugin::Plugin
   @critical = false
   @warning = false
   @ok = false
+  
   # initialize with a call to docker info
   def initialize
     cmd = 'docker info 2>&1'
     @info = {}
     IO.popen(cmd).each do |line|
-      l=line.split(':')
-      @info[l[0].delete(' ')]=l[1][0..-2].delete(' ')
+      if(line.include?("Cannot connect") || line.include?("permission denied"))
+        @critical = true
+        @info["CRITICAL"]=line
+      else
+        l=line.split(':')
+        @info[l[0].delete(' ')]=l[1][0..-2]
+      end
     end.close
     @ok =  $?.success?
-    @info.delete("WARNING")# remove for now warning from docker info
+    
+    
+    #@info.delete("WARNING")# remove for now warning from docker info
+    @warning = @info.has_key?("WARNING")
   end
 
   def critical?
-    @critical # Enter your code here (returns true when critical, else false).
+    @msg=@info["CRITICAL"]
+    @critical
   end
 
   def warning?
-    @warning # Enter your code here (returns true when warning, else false).
+    @msg=@info["WARNING"]
+    @warning 
   end
 
   def ok?
+    perf_data = "|"
+    @msg = ""
+    @info.each do |label,val|
+      if (val.is_number?)
+         perf_data+="#{label}=#{val.delete(' ')} ,"
+      else
+         @msg+="#{label} is #{val.delete(' ')} ,"
+      end
+    end
+    @msg=@msg[0..-2] + perf_data[0..-2]
+
     @ok
   end
   
    
   def message
-    perf_data = "|"
-    msg = ""
-    @info.each do |label,val|
-      if (val.is_number?)
-         perf_data+="#{label}=#{val} ,"
-      else
-         msg+="#{label} is #{val} ,"
-      end
-    end
-    msg[0..-2] + perf_data[0..-2]
+    @msg
   end
 end
 
